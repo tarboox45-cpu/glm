@@ -1,168 +1,207 @@
-# X·Host Chat — التقرير التقني الشامل
+# X·Host Platform v2.0 — التقرير التقني الشامل
 
-## نظرة عامة
+## نظرة عامة على المنصة
 
-**X·Host Chat** هو موقع ويب متكامل للدردشة بالذكاء الاصطناعي، مبني على نموذج GLM المتقدم. تم تصميمه وتطويره ليكون جاهزاً للنشر الفوري على منصة Vercel مع واجهة مستخدم احترافية وأداء عالٍ.
+**X·Host Platform** هي منصة ذكاء اصطناعي متكاملة تجمع بين ثلاث وحدات وظيفية رئيسية:
+- **💬 الدردشة الذكية** — محادثات تفاعلية مع نموذج GLM بدعم Streaming كامل
+- **📝 محرر الملفات** — تحرير الملفات البرمجية والنصية مع تحليل AI مدمج
+- **🖼 محلل الصور** — رفع الصور وتحليلها باستخدام الذكاء الاصطناعي
 
 ---
 
 ## هيكل المشروع
 
 ```
-x-host-chat/
+x-host-platform/
 ├── api/
-│   └── chat.js          ← Serverless Function (API الخلفي)
+│   ├── chat.js        ← Serverless: بث محادثات GLM بشكل متدفق
+│   └── analyze.js     ← Serverless: تحليل الملفات والصور
 ├── public/
-│   └── index.html       ← واجهة المستخدم الكاملة (SPA)
-├── vercel.json          ← إعدادات النشر على Vercel
-├── package.json         ← تعريف المشروع والاعتمادات
-├── .gitignore           ← استثناءات Git
-└── README.md            ← هذا الملف
+│   └── index.html     ← SPA الكاملة (HTML + CSS + JS في ملف واحد)
+├── vercel.json        ← إعدادات توجيه Vercel، Headers الأمان، البيئة
+├── package.json       ← تعريف المشروع
+├── .gitignore
+└── README.md          ← هذا الملف
 ```
 
 ---
 
-## التقنيات المستخدمة
+## الوحدات التقنية
 
-| الطبقة | التقنية | السبب |
-|--------|---------|-------|
-| **Backend** | Vercel Serverless Functions (Node.js) | صفر إعداد، توسع تلقائي، Vercel-native |
-| **Frontend** | HTML5 + CSS3 + Vanilla JS | بدون build step، سرعة تحميل فائقة، متوافق مع كل المتصفحات |
-| **AI Model** | GLM (عبر glm-ai.chat) | النموذج المدمج في المشروع الأصلي |
-| **Streaming** | ReadableStream API (NDJSON) | استجابات فورية بدون انتظار |
-| **التخزين** | localStorage | حفظ المحادثات والإعدادات محلياً |
-| **الخطوط** | IBM Plex Sans Arabic | دعم ممتاز للعربية، مظهر احترافي |
+### 1. API الدردشة (`/api/chat`)
 
----
+**الغرض:** بث ردود GLM بشكل متدفق (Streaming) مع دعم سياق المحادثة.
 
-## آلية عمل API
+**الميزات الجديدة مقارنة بالنسخة الأصلية:**
 
-### نقطة النهاية (Endpoint)
+| الميزة | التفاصيل |
+|--------|---------|
+| **Context Window** | يُرسل آخر 6 رسائل كسياق مع كل طلب |
+| **Rate Limiting** | حماية من إساءة الاستخدام (800ms بين الطلبات) |
+| **IP Detection** | استخراج IP من `x-forwarded-for` للـ Rate Limiting |
+| **Input Validation** | التحقق من الطول (8000 حرف كحد أقصى) والنوع |
+| **Error Taxonomy** | تصنيف الأخطاء: `502` للـ upstream، `400` للمدخلات، `429` للـ Rate Limit |
+| **Nonce Caching** | تخزين Nonce مؤقتاً لمدة ساعة |
 
-```
-POST /api/chat
-GET  /api/chat
-```
-
-### المصادقة
-
-```http
-x-api-key: x-host-jwgahs384babterboo
-```
-
-### معاملات الطلب
-
-| المعامل | النوع | الوصف |
-|---------|-------|-------|
-| `request` | string (مطلوب) | نص رسالة المستخدم |
-| `session_id` | string | معرّف الجلسة (افتراضي: `"default"`) |
-| `prompt` | string | رسالة النظام (System Prompt) |
-
-### مثال على الطلب
-
-```bash
-curl -X POST https://your-domain.vercel.app/api/chat \
-  -H "Content-Type: application/json" \
-  -H "x-api-key: x-host-jwgahs384babterboo" \
-  -d '{
-    "request": "ما هو الذكاء الاصطناعي؟",
-    "session_id": "user123",
-    "prompt": "أنت مساعد ذكي باللغة العربية"
-  }'
-```
-
-### تنسيق الاستجابة (Streaming NDJSON)
-
-تُعاد الاستجابة كخط إنتاج متدفق (stream)، كل سطر كائن JSON:
-
-```json
-{"type": "thinking", "content": "...تفكير النموذج..."}
-{"type": "response", "content": "...جزء من الرد..."}
-{"type": "finish",   "content": "...النص الكامل..."}
-```
-
-| النوع | الوصف |
-|-------|-------|
-| `thinking` | مرحلة تفكير النموذج الداخلية (قابلة للعرض/الإخفاء) |
-| `response` | أجزاء الرد المتدفقة تباعاً |
-| `finish` | إشارة انتهاء مع النص الكامل للرد |
-
----
-
-## ميزات الواجهة الأمامية
-
-### ✅ ميزات الدردشة
-- **Streaming في الوقت الفعلي** — تظهر الكلمات أولاً بأول كما يكتبها النموذج
-- **عرض التفكير** — كتلة قابلة للطي تُظهر عملية التفكير الداخلية للنموذج
-- **تاريخ المحادثات** — يُحفظ تلقائياً في localStorage
-- **محادثات متعددة** — يمكن إنشاء محادثات متوازية والتنقل بينها
-- **إيقاف البث** — زر الإرسال يتحول لزر إيقاف أثناء التدفق
-
-### ✅ تجربة المستخدم
-- **Responsive Design** — يعمل على الهاتف، التابلت، والحاسوب
-- **مؤشر الحالة** — نقطة ملونة تُظهر حالة الاتصال (متصل/يفكر/خطأ)
-- **اقتراحات البداية** — أسئلة جاهزة للمستخدمين الجدد
-- **اختصارات لوحة المفاتيح** — Enter للإرسال، Shift+Enter لسطر جديد
-- **عداد الأحرف** — يُظهر عدد أحرف الرسالة الحالية
-- **Auto-resize** — صندوق النص يتمدد تلقائياً مع المحتوى
-
-### ✅ الإعدادات
-- تغيير مفتاح API
-- تخصيص System Prompt
-- تغيير معرّف الجلسة
-- الحفظ التلقائي في localStorage
-
----
-
-## إعدادات Vercel
-
-### `vercel.json` — شرح الإعدادات
-
+**طلب POST `/api/chat`:**
 ```json
 {
-  "functions": {
-    "api/chat.js": {
-      "maxDuration": 60    // الحد الأقصى للزمن: 60 ثانية (ضروري لنماذج LLM)
-    }
-  },
-  "routes": [
-    { "src": "/api/(.*)", "dest": "/api/$1" },     // API routes
-    { "src": "/(.*)",     "dest": "/public/$1" }   // Static files
-  ],
-  "headers": [...]   // Security headers
+  "request":    "نص رسالة المستخدم",
+  "session_id": "user-abc",
+  "prompt":     "System prompt اختياري",
+  "context":    [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]
+}
+```
+
+**استجابة Stream (NDJSON):**
+```
+{"type": "thinking",  "content": "...تفكير داخلي..."}
+{"type": "response",  "content": "...جزء من الرد..."}
+{"type": "finish",    "content": "...النص الكامل..."}
+```
+
+---
+
+### 2. API التحليل (`/api/analyze`)
+
+**الغرض:** تحليل محتوى الملفات والصور بإرسال بيانات غنية إلى GLM.
+
+**أنواع التحليل المدعومة:**
+
+| النوع (`type`) | الوصف | مثال استخدام |
+|--------------|-------|-------------|
+| `code` | مراجعة الكود، الأمان، الأداء | `.js`, `.py`, `.ts` |
+| `text` | تحليل النصوص والمستندات | `.md`, `.txt` |
+| `json` | تحليل بنية JSON والـ API | `.json` |
+| `csv` | تحليل البيانات والأنماط | `.csv` |
+| `image` | تحليل الصور من البيانات الوصفية | `PNG`, `JPEG`, `WebP` |
+
+**طلب POST `/api/analyze`:**
+```json
+{
+  "type":        "code",
+  "content":     "محتوى الملف أو البيانات الوصفية",
+  "instruction": "ماذا تريد من AI؟ (اختياري)",
+  "fileName":    "app.js",
+  "session_id":  "editor"
 }
 ```
 
 ---
 
-## النشر على Vercel
+### 3. الواجهة الأمامية (`/public/index.html`)
 
-### الطريقة 1: عبر Vercel CLI
+SPA مكتفية ذاتياً — لا تعتمد على أي Framework خارجي أو Build Process.
 
+**النظام المعماري:**
+
+```
+shell (CSS Grid)
+├── topbar (header دائم)
+├── nav (sidebar بالمحادثات والوحدات)
+└── content (منطقة المحتوى الرئيسية)
+    ├── mod-chat     (الدردشة)
+    ├── mod-editor   (محرر الملفات)
+    ├── mod-image    (محلل الصور)
+    └── mod-settings (الإعدادات)
+```
+
+**إدارة الحالة (State Management):**
+```javascript
+app = {
+  module: 'chat',           // الوحدة النشطة
+  streaming: false,         // هل هناك طلب جاري؟
+  abort: AbortController,   // للإلغاء عند الحاجة
+  conversations: [...],     // سجل كل المحادثات
+  activeConvId: string,     // المحادثة الحالية
+  settings: { ... },        // تفضيلات المستخدم
+  editor: { files, activeId, ... },  // حالة المحرر
+  image: { file, dataUrl, meta }     // حالة محلل الصور
+}
+```
+
+**التخزين المحلي:**
+- `xhp_settings` — إعدادات المستخدم
+- `xhp_convs` — سجل المحادثات
+
+---
+
+## ميزات كل وحدة
+
+### 💬 وحدة الدردشة
+
+- **Streaming في الوقت الفعلي** — كلمة بكلمة
+- **عرض التفكير الداخلي** — كتلة قابلة للطي تُظهر مرحلة Reasoning
+- **Context Memory** — إرسال سياق المحادثة السابقة تلقائياً
+- **محادثات متعددة** — تنقل سهل في الشريط الجانبي
+- **تصدير المحادثة** — تصدير كملف نصي
+- **اقتراحات ذكية** — بطاقات بداية سريعة
+
+### 📝 وحدة المحرر
+
+- **فتح ملفات متعددة** — نظام tabs للتنقل بين الملفات
+- **كشف نوع الملف تلقائياً** — يُحدد طريقة التحليل حسب الامتداد
+- **تحليل AI بـ Streaming** — النتيجة تظهر فورياً
+- **إدراج التحليل في الملف** — زر "تطبيق" يُضيف التحليل كتعليق
+- **حفظ الملف محلياً** — تنزيل فوري
+- **شريط معلومات** — السطور، الأحرف، نوع الملف
+
+### 🖼 وحدة محلل الصور
+
+- **Drag & Drop** — سحب وإفلات الصور مباشرة
+- **معاينة فورية** — عرض الصورة قبل التحليل
+- **استخراج البيانات الوصفية** — الأبعاد، النوع، الحجم، الاسم
+- **تحليل قابل للتخصيص** — توجيه AI بتعليمات محددة
+- **دعم صيغ متعددة** — PNG, JPEG, WebP, GIF, SVG, BMP
+
+### ⚙ الإعدادات
+
+- **API Key** — تغيير مفتاح المصادقة
+- **System Prompt** — تخصيص شخصية النموذج
+- **معرّف الجلسة** — إدارة سياق GLM
+- **تفضيلات الواجهة** — عرض التفكير، الحفظ التلقائي، اختصار Enter
+- **إحصائيات** — عدد المحادثات والرسائل
+- **مسح البيانات** — حذف كل البيانات المحلية
+
+---
+
+## متطلبات النشر على Vercel
+
+### الإعداد الفوري (Zero-Config)
+
+لا توجد متطلبات إضافية — Vercel يكتشف الـ Serverless Functions تلقائياً.
+
+### خطوات النشر
+
+**الطريقة 1 — Vercel CLI:**
 ```bash
-# 1. تثبيت Vercel CLI
-npm i -g vercel
-
-# 2. الدخول لحسابك
+npm install -g vercel
 vercel login
-
-# 3. نشر المشروع
-cd x-host-chat
+cd x-host-platform
 vercel --prod
 ```
 
-### الطريقة 2: عبر GitHub + Vercel Dashboard
+**الطريقة 2 — GitHub Integration:**
+1. ارفع المجلد على GitHub
+2. [vercel.com](https://vercel.com) → New Project → Import Git Repository
+3. اضغط Deploy — لا شيء آخر مطلوب
 
-1. ارفع المشروع على GitHub
-2. اذهب إلى [vercel.com](https://vercel.com) → New Project
-3. اختر المستودع
-4. Vercel يكتشف الإعدادات تلقائياً (**لا توجد إعدادات إضافية مطلوبة**)
-5. اضغط Deploy
+**الطريقة 3 — Drag & Drop:**
+اسحب مجلد `x-host-platform` وأفلته في [vercel.com/new](https://vercel.com/new)
 
-### الطريقة 3: سحب وإفلات
+### متغيرات البيئة (اختياري)
 
-1. اذهب إلى vercel.com → New Project
-2. اسحب مجلد `x-host-chat` وأفلته مباشرة
+لتعزيز الأمان، يمكن تغيير API Key عبر Vercel Dashboard:
+```
+Settings → Environment Variables → Add:
+Name:  API_KEY
+Value: مفتاحك-الجديد
+```
+
+ثم في `api/chat.js` و `api/analyze.js`:
+```javascript
+const API_KEY = process.env.API_KEY || 'x-host-jwgahs384babterboo'
+```
 
 ---
 
@@ -170,65 +209,84 @@ vercel --prod
 
 | الإجراء | التفاصيل |
 |---------|---------|
-| **API Key Auth** | كل طلب يجب أن يحمل `x-api-key` صحيحاً |
-| **CORS** | مضبوط للسماح بالوصول العام (قابل للتقييد) |
+| **API Key Auth** | كل طلب يحتاج `x-api-key` صحيح في الـ Header |
+| **Rate Limiting** | 800ms minimum بين الطلبات من نفس IP |
+| **Input Sanitization** | التحقق من نوع وطول المدخلات |
 | **Security Headers** | `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` |
-| **No Secrets Exposure** | مفتاح API لا يُعرض في الواجهة الأمامية (مخزن في localStorage فقط) |
+| **CORS** | مضبوط، قابل للتقييد عبر `ALLOWED_ORIGIN` env var |
+| **No Secrets in Frontend** | مفتاح API يُخزن فقط في localStorage المتصفح |
+| **Max Request Size** | 8000 حرف كحد أقصى للرسائل |
 
 ---
 
 ## الأداء
 
-- **لا يوجد Build Step** — نشر فوري، لا Webpack، لا bundling
-- **Static HTML** — يُقدَّم من CDN Vercel بزمن استجابة < 50ms
-- **Nonce Caching** — يُخزَّن الـ nonce لمدة ساعة لتقليل الطلبات الإضافية
-- **Streaming** — لا انتظار لاكتمال الرد، يظهر فورياً
+| المقياس | القيمة المتوقعة |
+|--------|--------------|
+| زمن تحميل الصفحة | < 300ms (CDN Vercel) |
+| أول بايت من الـ Stream | ~800ms - 2s |
+| حجم `index.html` | ~55KB |
+| Build Time | لا يوجد (Static HTML) |
+| Cold Start الـ Serverless | ~300-500ms |
+
+**لماذا لا يوجد Build Step؟**
+- السرعة: نشر فوري بدون webpack/vite/rollup
+- البساطة: ملف HTML واحد يحتوي كل شيء
+- Vercel CDN: يُقدّم الـ HTML من edge network عالمياً
 
 ---
 
-## نصائح الصيانة المستقبلية
+## التطوير المحلي
 
-1. **تدوير مفتاح API** — يمكن تغييره من `api/chat.js` في السطر:
-   ```js
-   const API_KEY = "x-host-jwgahs384babterboo"
-   ```
-
-2. **Rate Limiting** — لإضافة حماية من الإفراط في الاستخدام:
-   ```js
-   // في api/chat.js أضف في البداية:
-   const rateMap = new Map()
-   const ip = req.headers['x-forwarded-for'] || 'unknown'
-   const now = Date.now()
-   const last = rateMap.get(ip) || 0
-   if (now - last < 1000) return res.status(429).json({ error: 'Too many requests' })
-   rateMap.set(ip, now)
-   ```
-
-3. **تغيير النموذج** — إذا تغير عنوان `glm-ai.chat`، عدّل في `api/chat.js`:
-   ```js
-   const res = await fetch("https://glm-ai.chat/chat/", ...)
-   const ai = await fetch("https://glm-ai.chat/wp-admin/admin-ajax.php", ...)
-   ```
-
-4. **إضافة Analytics** — أضف `vercel analytics` لتتبع الاستخدام:
-   ```bash
-   npm i @vercel/analytics
-   ```
+```bash
+npm install -g vercel
+cd x-host-platform
+vercel dev
+# الموقع يعمل على http://localhost:3000
+```
 
 ---
 
-## المتطلبات
+## توسيع المنصة مستقبلاً
 
-- Node.js >= 18
-- حساب Vercel (مجاني يكفي للاستخدام الشخصي)
-- لا توجد متطلبات قاعدة بيانات أو خوادم خارجية
+### إضافة وحدة جديدة
+```javascript
+// 1. أضف nav-item في HTML
+// 2. أضف module section في HTML
+// 3. أضف case في switchModule()
+// 4. أضف منطق JavaScript للوحدة
+```
+
+### تحسين تحليل الصور
+عند توفر API يدعم Vision (مثل GPT-4V):
+```javascript
+// في api/analyze.js، أضف دعم base64
+const imageContent = [{
+  type: "image_url",
+  image_url: { url: `data:image/jpeg;base64,${base64Data}` }
+}]
+```
+
+### إضافة قاعدة بيانات
+لتخزين المحادثات server-side (بدلاً من localStorage):
+```javascript
+// في vercel.json أضف:
+// "integrations": ["vercel-postgres"]
+// أو استخدم Vercel KV للـ key-value storage
+```
 
 ---
 
-## الترخيص
+## استكشاف المشاكل
 
-MIT License — حر الاستخدام والتعديل.
+| المشكلة | السبب المحتمل | الحل |
+|---------|-------------|------|
+| خطأ 401 | API Key غلط | تحقق من الإعدادات |
+| خطأ 502 | خدمة GLM غير متاحة | انتظر وأعد المحاولة |
+| خطأ 429 | طلبات كثيرة | انتظر ثانية بين الطلبات |
+| الـ Stream يتوقف | مهلة Vercel (60s) | رسائل أقصر |
+| لا تظهر الصورة | حجم كبير | استخدم صور أقل من 5MB |
 
 ---
 
-*X·Host Chat — Built with precision for Vercel deployment.*
+*X·Host Platform v2.0 — Built for Vercel Serverless. Zero dependencies. Maximum performance.*

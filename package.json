@@ -1,18 +1,16 @@
 {
-  "name": "x-host-chat",
-  "version": "1.0.0",
-  "description": "X·Host — Advanced AI Chat Interface powered by GLM",
+  "name": "x-host-platform",
+  "version": "2.0.0",
+  "description": "X·Host — Integrated AI Platform: Chat, File Editor & Image Analyzer",
   "private": true,
-  "engines": {
-    "node": ">=18.x"
-  },
+  "engines": { "node": ">=18.x" },
   "scripts": {
-    "dev": "vercel dev",
+    "dev":    "vercel dev",
     "deploy": "vercel --prod"
   },
   "devDependencies": {
     "vercel": "^37.0.0"
   },
-  "keywords": ["ai", "chat", "glm", "vercel"],
+  "keywords": ["ai", "chat", "glm", "file-editor", "image-analysis", "vercel"],
   "license": "MIT"
 }

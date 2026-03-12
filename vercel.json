@@ -2,6 +2,9 @@
   "functions": {
     "api/chat.js": {
       "maxDuration": 60
+    },
+    "api/analyze.js": {
+      "maxDuration": 60
     }
   },
   "routes": [
@@ -10,26 +13,35 @@
       "dest": "/api/$1"
     },
     {
-      "src": "/(.*)",
+      "src": "/(.*\\.(js|css|png|jpg|svg|ico|woff2?))",
       "dest": "/public/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/public/index.html"
     }
   ],
   "headers": [
     {
       "source": "/api/(.*)",
       "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+        { "key": "X-Content-Type-Options",  "value": "nosniff" },
+        { "key": "X-Frame-Options",          "value": "DENY" },
+        { "key": "Referrer-Policy",          "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy",       "value": "camera=(), microphone=(), geolocation=()" }
       ]
     },
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
-        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" }
+        { "key": "X-Content-Type-Options",  "value": "nosniff" },
+        { "key": "X-Frame-Options",          "value": "SAMEORIGIN" },
+        { "key": "Referrer-Policy",          "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy",       "value": "camera=(), microphone=(), geolocation=()" }
       ]
     }
-  ]
+  ],
+  "env": {
+    "API_KEY": "@xhost_api_key"
+  }
 }
